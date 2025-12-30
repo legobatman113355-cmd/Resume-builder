@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PortfolioGen - AI Resume Builder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    
+    <!-- PDF.js for client-side PDF reading -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        window.addEventListener('load', () => {
+            if (typeof pdfjsLib !== 'undefined') {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            }
+        });
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+        
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            overscroll-behavior: none; 
+        }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .preview-frame { width: 100%; height: 100%; border: none; background: white; }
+        .input-group:focus-within label, .input-group:focus-within i { color: #4f46e5; }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { 50: '#eef2ff', 100: '#e0e7ff', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-slate-50 h-[100dvh] flex flex-col md:flex-row overflow-hidden text-slate-800">
+
+    <!-- Mobile Tab Navigation -->
+    <div class="md:hidden fixed bottom-0 left-0 w-full h-16 bg-white border-t border-slate-200 z-50 flex justify-around items-center px-2 pb-safe">
+        <button onclick="switchTab('editor')" id="tabEditor" class="flex flex-col items-center justify-center w-full h-full text-brand-600 transition-colors">
+            <i class="fa-solid fa-pen-to-square text-lg mb-1"></i>
+            <span class="text-[10px] font-bold uppercase tracking-wide">Editor</span>
+        </button>
+        <div class="w-px h-8 bg-slate-100"></div>
+        <button onclick="switchTab('preview')" id="tabPreview" class="flex flex-col items-center justify-center w-full h-full text-slate-400 hover:text-slate-600 transition-colors">
+            <i class="fa-solid fa-eye text-lg mb-1"></i>
+            <span class="text-[10px] font-bold uppercase tracking-wide">Preview</span>
+        </button>
+    </div>
+
+    <!-- Sidebar / Editor Panel -->
+    <div id="editorPanel" class="w-full md:w-1/3 md:min-w-[400px] bg-white border-r border-slate-200 flex flex-col h-full shadow-xl z-20 pb-16 md:pb-0 transition-transform duration-300 ease-in-out">
+        <!-- Header -->
+        <div class="px-6 py-5 border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
+            <div class="flex items-center justify-between mb-1">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center text-white shadow-lg shadow-brand-500/30">
+                        <i class="fa-solid fa-layer-group"></i>
+                    </div>
+                    <h1 class="text-xl font-bold tracking-tight text-slate-900">PortfolioGen</h1>
+                </div>
+                <button onclick="document.getElementById('apiSettings').classList.toggle('hidden')" class="text-xs text-slate-400 hover:text-brand-600 transition-colors p-2">
+                    <i class="fa-solid fa-gear text-lg md:text-sm"></i>
+                </button>
+            </div>
+            
+            <div id="apiSettings" class="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-lg hidden animate-[fadeIn_0.2s_ease-out]">
+                <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Gemini API Key</label>
+                <input type="password" id="apiKey" class="w-full p-2 text-xs border border-slate-300 rounded bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none" placeholder="Paste your API Key here...">
+            </div>
+        </div>
+
+        <!-- Scrollable Content -->
+        <div class="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 md:space-y-8">
+            
+            <!-- Quick Import -->
+            <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group hover:border-brand-200 transition-colors">
+                 <div class="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity pointer-events-none">
+                    <i class="fa-solid fa-file-import text-6xl text-brand-600 transform rotate-12"></i>
+                </div>
+                <label class="flex items-center gap-2 text-xs font-bold text-slate-700 mb-3 uppercase tracking-wider">
+                    <i class="fa-solid fa-magic text-brand-500"></i> Smart Resume Parser
+                </label>
+                
+                <div class="flex gap-2 mb-3">
+                    <label class="flex-1 cursor-pointer bg-white border border-dashed border-slate-300 hover:border-brand-500 hover:bg-brand-50 text-slate-600 hover:text-brand-600 text-xs font-semibold py-3 rounded-lg transition-all shadow-sm flex flex-col items-center justify-center gap-1">
+                        <i class="fa-solid fa-cloud-arrow-up text-base"></i>
+                        <span>Upload PDF</span>
+                        <input type="file" id="pdfUpload" accept=".pdf" class="hidden" onchange="handlePdfUpload(this)">
+                    </label>
+                </div>
+                <textarea id="resumeText" class="w-full text-sm p-3 border border-slate-200 rounded-lg h-16 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent bg-white resize-none transition-all placeholder:text-slate-400" placeholder="Or paste text here..."></textarea>
+                <button id="parseBtn" onclick="parseResumeWithAI()" class="mt-3 w-full bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold py-2.5 rounded-lg transition-all shadow-md shadow-brand-500/20 flex items-center justify-center gap-2">
+                    <span id="parseBtnText">Extract with Gemini</span>
+                    <i id="parseBtnIcon" class="fa-solid fa-wand-magic-sparkles"></i>
+                </button>
+            </div>
+
+            <!-- Appearance Section -->
+            <div class="space-y-4">
+                 <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Appearance</h3>
+                  
+                 <!-- Theme & Color -->
+                 <div class="grid grid-cols-2 gap-4">
+                    <div class="input-group">
+                        <label class="block text-[10px] font-bold text-slate-500 mb-1">Base Theme</label>
+                        <div class="relative">
+                            <select id="themeSelector" onchange="updatePreview()" class="w-full p-2 border border-slate-200 rounded-lg bg-white text-xs font-medium appearance-none">
+                                <option value="modern">Modern Tech</option>
+                                <option value="minimal">Minimalist</option>
+                                <option value="creative">Creative Dark</option>
+                                <option value="retro">Retro Terminal</option>
+                                <option value="rpg">RPG Fantasy</option>
+                                <option value="anime">Anime Pop</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                         <label class="block text-[10px] font-bold text-slate-500 mb-1">Accent Color</label>
+                         <div class="flex items-center gap-2 bg-white border border-slate-200 p-1.5 rounded-lg h-[34px]">
+                             <input type="color" id="accentColor" value="#4f46e5" class="h-5 w-8 rounded cursor-pointer border-0 p-0" oninput="updatePreview()">
+                             <span class="text-[10px] text-slate-400 font-mono" id="accentHex">#4F46E5</span>
+                         </div>
+                    </div>
+                 </div>
+
+                 <!-- Fonts & Dark Mode -->
+                 <div class="grid grid-cols-2 gap-4 items-center">
+                    <div class="input-group">
+                        <label class="block text-[10px] font-bold text-slate-500 mb-1">Typography</label>
+                        <select id="fontSelector" onchange="updatePreview()" class="w-full p-2 border border-slate-200 rounded-lg bg-white text-xs font-medium appearance-none">
+                            <option value="default">Theme Default</option>
+                            <option value="sans">Modern Sans</option>
+                            <option value="serif">Elegant Serif</option>
+                            <option value="mono">Tech Mono</option>
+                        </select>
+                    </div>
+                    <div class="input-group pt-4">
+                        <label class="flex items-center gap-2 cursor-pointer bg-slate-50 border border-slate-200 p-2 rounded-lg hover:bg-slate-100 transition-colors">
+                            <input type="checkbox" id="darkModeToggle" class="rounded text-brand-600 focus:ring-brand-500 h-4 w-4" onchange="updatePreview()">
+                            <span class="text-[10px] font-bold text-slate-600">Enable Dark Mode</span>
+                        </label>
+                    </div>
+                 </div>
+            </div>
+
+            <!-- Personal Info -->
+            <div class="space-y-4">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Content</h3>
+                
+                <div class="grid gap-3">
+                    <input type="text" id="fullName" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm" placeholder="Full Name" oninput="updatePreview()">
+                    <input type="text" id="jobTitle" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm" placeholder="Job Title" oninput="updatePreview()">
+                    
+                    <div class="relative">
+                        <button onclick="polishText('summary', 'summaryBtn')" id="summaryBtn" class="absolute right-2 top-2 text-[10px] text-brand-600 font-bold bg-brand-50 px-2 py-0.5 rounded hover:bg-brand-100">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> Polish
+                        </button>
+                        <textarea id="summary" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm h-24 resize-none" placeholder="Professional Summary..." oninput="updatePreview()"></textarea>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="text" id="email" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm" placeholder="Email" oninput="updatePreview()">
+                         <input type="text" id="github" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm" placeholder="GitHub URL" oninput="updatePreview()">
+                         <input type="text" id="linkedin" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm" placeholder="LinkedIn URL" oninput="updatePreview()">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Skills -->
+            <div class="space-y-2">
+                <label class="text-[10px] font-bold text-slate-500 uppercase">Skills (Comma Separated)</label>
+                <textarea id="skills" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm h-16 resize-none" placeholder="React, Python, Design..." oninput="updatePreview()"></textarea>
+            </div>
+
+            <!-- Projects -->
+            <div class="space-y-3">
+                <div class="flex justify-between items-center">
+                    <label class="text-[10px] font-bold text-slate-500 uppercase">Projects</label>
+                    <button onclick="addProject()" class="text-[10px] bg-brand-50 text-brand-600 px-2 py-1 rounded font-bold hover:bg-brand-100">
+                        + Add
+                    </button>
+                </div>
+                <div id="projectsContainer" class="space-y-3"></div>
+            </div>
+            
+            <div class="h-12"></div>
+        </div>
+
+        <!-- Sticky Footer -->
+        <div class="p-5 border-t border-slate-200 bg-white z-20 hidden md:block">
+            <button onclick="downloadWebsite()" class="w-full bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-brand-500/30 flex items-center justify-center gap-2 transition-transform hover:scale-[1.02]">
+                <i class="fa-solid fa-cloud-arrow-down"></i> 
+                <span>Download Portfolio</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Preview Panel -->
+    <div id="previewPanel" class="hidden md:flex flex-1 bg-slate-100 relative overflow-hidden h-full flex-col pb-16 md:pb-0">
+        <div class="absolute inset-0 opacity-[0.03] pointer-events-none" style="background-image: radial-gradient(#64748b 1px, transparent 1px); background-size: 24px 24px;"></div>
+        <div class="absolute inset-0 flex items-center justify-center p-0 md:p-6 lg:p-12">
+            <div class="mockup-window w-full h-full md:max-w-6xl md:shadow-2xl md:rounded-xl overflow-hidden flex flex-col bg-slate-800 ring-1 ring-slate-900/5">
+                <div class="bg-slate-900 h-10 flex items-center px-4 space-x-2 shrink-0 border-b border-slate-700">
+                    <div class="flex space-x-1.5">
+                        <div class="w-3 h-3 rounded-full bg-red-500/80"></div>
+                        <div class="w-3 h-3 rounded-full bg-yellow-500/80"></div>
+                        <div class="w-3 h-3 rounded-full bg-green-500/80"></div>
+                    </div>
+                    <div class="flex-1 flex justify-center px-4">
+                        <div class="bg-slate-800 text-slate-400 text-xs py-1 px-4 rounded-md w-full max-w-md text-center font-mono flex items-center justify-center gap-2 truncate">
+                            <i class="fa-solid fa-lock text-[10px]"></i> index.html
+                        </div>
+                    </div>
+                     <button onclick="downloadWebsite()" class="md:hidden text-white hover:text-brand-400">
+                        <i class="fa-solid fa-cloud-arrow-down"></i>
+                    </button>
+                    <div class="hidden md:block w-10"></div> 
+                </div>
+                <iframe id="previewFrame" class="preview-frame bg-white flex-1 w-full h-full"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Mobile Tab Logic ---
+        function switchTab(tabName) {
+            const editorPanel = document.getElementById('editorPanel');
+            const previewPanel = document.getElementById('previewPanel');
+            const tabEditor = document.getElementById('tabEditor');
+            const tabPreview = document.getElementById('tabPreview');
+
+            if (tabName === 'editor') {
+                editorPanel.classList.remove('hidden');
+                previewPanel.classList.add('hidden');
+                previewPanel.classList.remove('flex');
+                tabEditor.classList.replace('text-slate-400', 'text-brand-600');
+                tabPreview.classList.replace('text-brand-600', 'text-slate-400');
+            } else {
+                editorPanel.classList.add('hidden');
+                previewPanel.classList.remove('hidden');
+                previewPanel.classList.add('flex');
+                tabPreview.classList.replace('text-slate-400', 'text-brand-600');
+                tabEditor.classList.replace('text-brand-600', 'text-slate-400');
+            }
+        }
+
+        // --- Utility ---
+        function escapeHtml(text) {
+            if (!text) return "";
+            return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        // --- Gemini API Logic ---
+        async function callGemini(prompt) {
+            const userKey = document.getElementById('apiKey').value;
+            const apiKey = ""; 
+            const key = userKey || apiKey;
+            if (!key) {
+                alert("Please enter a Gemini API Key in the settings to use AI features!");
+                document.getElementById('apiSettings').classList.remove('hidden');
+                document.getElementById('apiKey').focus();
+                return null;
+            }
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${key}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                });
+                if (!response.ok) throw new Error((await response.json()).error?.message || "API Error");
+                return (await response.json()).candidates?.[0]?.content?.parts?.[0]?.text;
+            } catch (error) {
+                alert("AI Error: " + error.message);
+                return null;
+            }
+        }
+
+        // --- PDF Logic ---
+        async function handlePdfUpload(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const label = input.parentElement;
+            const originalContent = label.innerHTML;
+            label.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin text-brand-600"></i> Reading PDF...';
+            label.classList.add('bg-brand-50');
+
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                let fullText = '';
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    fullText += (await (await pdf.getPage(i)).getTextContent()).items.map(item => item.str).join(' ') + '\n\n';
+                }
+                document.getElementById('resumeText').value = fullText;
+                label.innerHTML = originalContent;
+                label.classList.remove('bg-brand-50');
+                parseResumeWithAI();
+            } catch (error) {
+                alert('Could not read PDF.');
+                label.innerHTML = originalContent;
+                label.classList.remove('bg-brand-50');
+            } finally { input.value = ''; }
+        }
+
+        async function parseResumeWithAI() {
+            const text = document.getElementById('resumeText').value;
+            if (!text) return alert("Upload PDF or paste text first.");
+
+            const btn = document.getElementById('parseBtn');
+            const btnText = document.getElementById('parseBtnText');
+            const btnIcon = document.getElementById('parseBtnIcon');
+            const originalText = btnText.innerText;
+            
+            btnText.innerText = "Analyzing...";
+            btnIcon.className = "fa-solid fa-circle-notch fa-spin";
+            btn.disabled = true;
+
+            const prompt = `Extract structured data from this resume. Return raw JSON (no markdown) with schema: {"fullName": "String", "jobTitle": "String", "email": "String", "github": "String", "linkedin": "String", "summary": "String", "skills": ["String"], "projects": [{"title": "String", "desc": "String"}]}. Text: ${text}`;
+
+            const result = await callGemini(prompt);
+            if (result) {
+                try {
+                    const jsonStr = result.substring(result.indexOf('{'), result.lastIndexOf('}') + 1);
+                    const data = JSON.parse(jsonStr);
+                    if(data.fullName) document.getElementById('fullName').value = data.fullName;
+                    if(data.jobTitle) document.getElementById('jobTitle').value = data.jobTitle;
+                    if(data.email) document.getElementById('email').value = data.email;
+                    if(data.github) document.getElementById('github').value = data.github;
+                    if(data.linkedin) document.getElementById('linkedin').value = data.linkedin;
+                    if(data.summary) document.getElementById('summary').value = data.summary;
+                    if(data.skills) document.getElementById('skills').value = data.skills.join(', ');
+                    if(data.projects) {
+                        document.getElementById('projectsContainer').innerHTML = '';
+                        data.projects.forEach(p => addProject(p.title, p.desc));
+                    }
+                    updatePreview();
+                    if (window.innerWidth < 768) switchTab('preview');
+                } catch (e) { alert("Failed to parse AI response."); }
+            }
+            btnText.innerText = originalText;
+            btnIcon.className = "fa-solid fa-wand-magic-sparkles";
+            btn.disabled = false;
+        }
+
+        async function polishText(elId, btnId) {
+            const el = document.getElementById(elId);
+            if (!el.value) return;
+            const btn = document.getElementById(btnId);
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+            btn.disabled = true;
+            const result = await callGemini(`Rewrite for a portfolio. Concise, professional, action verbs. Text: "${el.value}"`);
+            if (result) { el.value = result.trim(); updatePreview(); }
+            btn.innerHTML = originalHTML;
+            btn.disabled = false;
+        }
+
+        // --- Builder Logic ---
+        const defaultData = {
+            fullName: "Alex Morgan", jobTitle: "Full Stack Developer",
+            summary: "Passionate developer building scalable web apps. Expert in React & Cloud architecture.",
+            email: "alex@example.com", github: "https://github.com", linkedin: "https://linkedin.com",
+            skills: "React, Node.js, TypeScript, Tailwind, AWS, Docker",
+            projects: [{ title: "E-Commerce API", desc: "Robust REST API handling 10k+ daily requests using Node.js." }]
+        };
+
+        window.onload = () => {
+            document.getElementById('fullName').value = defaultData.fullName;
+            document.getElementById('jobTitle').value = defaultData.jobTitle;
+            document.getElementById('summary').value = defaultData.summary;
+            document.getElementById('email').value = defaultData.email;
+            document.getElementById('github').value = defaultData.github;
+            document.getElementById('linkedin').value = defaultData.linkedin;
+            document.getElementById('skills').value = defaultData.skills;
+            document.getElementById('projectsContainer').innerHTML = '';
+            defaultData.projects.forEach(p => addProject(p.title, p.desc));
+            updatePreview();
+        };
+
+        function addProject(title = "New Project", desc = "Description...") {
+            const container = document.getElementById('projectsContainer');
+            const id = Date.now() + Math.random().toString(16).slice(2);
+            const div = document.createElement('div');
+            div.className = "p-3 rounded-lg border border-slate-200 bg-white relative group animate-[fadeIn_0.2s]";
+            div.innerHTML = `
+                <button onclick="this.parentElement.remove(); updatePreview()" class="absolute top-2 right-2 text-slate-300 hover:text-red-500"><i class="fa-solid fa-trash-can"></i></button>
+                <input type="text" class="project-title w-full font-semibold text-slate-800 border-none p-0 focus:ring-0 mb-1 text-sm" value="${escapeHtml(title)}" oninput="updatePreview()">
+                <div class="relative">
+                     <textarea id="pd_${id}" class="project-desc w-full text-xs text-slate-500 border-none p-0 focus:ring-0 resize-none h-12 pr-8" oninput="updatePreview()">${escapeHtml(desc)}</textarea>
+                     <button onclick="polishText('pd_${id}', 'bp_${id}')" id="bp_${id}" class="absolute bottom-0 right-0 text-brand-400 hover:text-brand-600"><i class="fa-solid fa-wand-magic-sparkles text-xs"></i></button>
+                </div>
+            `;
+            container.appendChild(div);
+            updatePreview();
+        }
+
+        function getFormData() {
+            const projects = [];
+            document.querySelectorAll('.project-title').forEach((t, i) => {
+                projects.push({ title: t.value, desc: document.querySelectorAll('.project-desc')[i].value });
+            });
+            return {
+                theme: document.getElementById('themeSelector').value,
+                accentColor: document.getElementById('accentColor').value,
+                fontFamily: document.getElementById('fontSelector').value,
+                darkMode: document.getElementById('darkModeToggle').checked,
+                fullName: document.getElementById('fullName').value,
+                jobTitle: document.getElementById('jobTitle').value,
+                summary: document.getElementById('summary').value,
+                email: document.getElementById('email').value,
+                github: document.getElementById('github').value,
+                linkedin: document.getElementById('linkedin').value,
+                skills: document.getElementById('skills').value.split(',').map(s => s.trim()).filter(s => s),
+                projects: projects
+            };
+        }
+
+        function generateHTML(data) {
+            // Update Hex Display
+            document.getElementById('accentHex').innerText = data.accentColor.toUpperCase();
+
+            // Font Logic
+            let fontStack = "sans-serif";
+            let fontUrl = "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700&display=swap";
+            let fontName = "Plus Jakarta Sans";
+            
+            if (data.fontFamily === 'serif') {
+                fontUrl = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@400&display=swap";
+                fontName = "Playfair Display";
+            } else if (data.fontFamily === 'mono') {
+                fontUrl = "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap";
+                fontName = "JetBrains Mono";
+            } else if (data.fontFamily === 'default') {
+                // Keep theme default logic
+                 if (data.theme === 'retro') { fontName = '"Press Start 2P", cursive'; fontUrl = "https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"; }
+                 else if (data.theme === 'rpg') { fontName = '"Cinzel", serif'; fontUrl = "https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap"; }
+                 else if (data.theme === 'anime') { fontName = '"Fredoka", sans-serif'; fontUrl = "https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap"; }
+            }
+
+            // --- Theme Styling Logic (Dynamic Tailwind Config) ---
+            let baseStyles = "";
+            let darkClasses = data.darkMode ? "dark:bg-slate-900 dark:text-slate-100" : "";
+            
+            if (data.theme === 'modern') {
+               baseStyles = `bg-white text-slate-800 ${darkClasses}`;
+            } else if (data.theme === 'minimal') {
+               baseStyles = `bg-[#fafafa] text-neutral-800 ${darkClasses}`;
+            } else if (data.theme === 'creative') {
+               baseStyles = `bg-[#0f172a] text-slate-100`; // Always dark
+            } else if (data.theme === 'retro') {
+               baseStyles = `bg-black text-primary font-retro uppercase tracking-wider`;
+            } else if (data.theme === 'rpg') {
+               baseStyles = `bg-[#f4e4bc] text-[#4a3b2a] font-rpg`;
+            } else if (data.theme === 'anime') {
+               baseStyles = `bg-white text-slate-800 font-anime ${darkClasses}`;
+            }
+
+            const skillsHTML = data.skills.map(s => `<span class="px-3 py-1.5 rounded-full text-xs font-bold border border-current opacity-70 hover:opacity-100 transition-opacity">${escapeHtml(s)}</span>`).join('');
+            
+            const projectsHTML = data.projects.map(p => `
+                <div class="p-6 rounded-2xl border transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ${data.theme === 'retro' ? 'border-primary border-2 rounded-none shadow-none hover:shadow-none hover:translate-y-0' : 'border-current/10 bg-current/5'}">
+                    <h3 class="text-lg font-bold mb-2">${escapeHtml(p.title)}</h3>
+                    <p class="text-sm opacity-80 leading-relaxed">${escapeHtml(p.desc)}</p>
+                </div>
+            `).join('');
+
+            return `<!DOCTYPE html>
+<html lang="en" class="${data.darkMode ? '' : ''} scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${escapeHtml(data.fullName)}</title>
+    <script src="https://cdn.tailwindcss.com"><\/script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="${fontUrl}" rel="stylesheet">
+    <script>
+        // Check for saved dark mode preference
+        if (${data.darkMode}) {
+            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark')
+            } else {
+                document.documentElement.classList.remove('dark')
+            }
+        }
+        
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '${data.accentColor}',
+                    },
+                    fontFamily: {
+                        custom: ['${fontName}', 'sans-serif', 'serif', 'cursive'],
+                        retro: ['"Press Start 2P"', 'cursive'],
+                        rpg: ['"Cinzel"', 'serif'],
+                        anime: ['"Fredoka"', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    <\/script>
+</head>
+<body class="${baseStyles} font-custom min-h-screen flex flex-col selection:bg-primary selection:text-white transition-colors duration-300">
+    
+    ${data.darkMode ? `
+    <button onclick="toggleTheme()" class="fixed top-5 right-5 z-50 p-3 rounded-full bg-white/10 backdrop-blur-md border border-current/20 hover:bg-white/20 transition-all text-sm">
+        <i class="fa-solid fa-moon hidden dark:block"></i>
+        <i class="fa-solid fa-sun block dark:hidden"></i>
+    </button>
+    <script>
+        function toggleTheme() {
+            if (document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.remove('dark');
+                localStorage.theme = 'light';
+            } else {
+                document.documentElement.classList.add('dark');
+                localStorage.theme = 'dark';
+            }
+        }
+    <\/script>` : ''}
+
+    <nav class="fixed w-full z-40 backdrop-blur-md bg-opacity-80 border-b border-current/10 px-6 py-4">
+        <div class="max-w-5xl mx-auto flex justify-between items-center">
+            <span class="font-bold text-lg tracking-tight">${escapeHtml(data.fullName)}.</span>
+            <div class="space-x-6 text-sm font-bold opacity-70">
+                <a href="#about" class="hover:text-primary transition-colors">About</a>
+                <a href="#projects" class="hover:text-primary transition-colors">Work</a>
+                <a href="mailto:${escapeHtml(data.email)}" class="hover:text-primary"><i class="fa-solid fa-envelope"></i></a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="flex-grow max-w-5xl mx-auto px-6 pt-32 pb-20 w-full relative">
+        <section id="about" class="mb-24 py-10">
+            <span class="text-primary text-xs font-bold tracking-widest uppercase mb-4 block">
+                ${data.theme === 'rpg' ? 'Class: Developer' : 'Available for hire'}
+            </span>
+            <h1 class="text-5xl md:text-7xl font-extrabold mb-6 tracking-tight leading-tight">
+                ${escapeHtml(data.jobTitle)}
+            </h1>
+            <p class="text-xl opacity-80 max-w-2xl leading-relaxed mb-10">
+                ${escapeHtml(data.summary)}
+            </p>
+            <div class="flex flex-wrap gap-4">
+                <a href="mailto:${escapeHtml(data.email)}" class="bg-primary text-white px-8 py-4 rounded-xl font-bold hover:opacity-90 transition-transform hover:-translate-y-1 w-full md:w-auto text-center ${data.theme === 'retro' ? 'rounded-none border-2 border-white text-black bg-primary hover:bg-white' : ''}">
+                    Let's Talk
+                </a>
+                ${data.github ? `<a href="${data.github}" class="border border-current/20 px-8 py-4 rounded-xl font-bold hover:bg-current/5 transition w-full md:w-auto text-center flex items-center justify-center gap-2"><i class="fab fa-github"></i> GitHub</a>` : ''}
+            </div>
+        </section>
+
+        <section id="skills" class="mb-24">
+            <h2 class="text-2xl font-bold mb-8 border-b border-current/10 pb-4">
+                ${data.theme === 'rpg' ? 'Skill Tree' : 'Tech Stack'}
+            </h2>
+            <div class="flex flex-wrap gap-3">
+                ${skillsHTML}
+            </div>
+        </section>
+
+        <section id="projects" class="mb-20">
+             <h2 class="text-2xl font-bold mb-8 border-b border-current/10 pb-4">Featured Work</h2>
+            <div class="grid md:grid-cols-2 gap-6">
+                ${projectsHTML}
+            </div>
+        </section>
+    </main>
+
+    <footer class="py-12 text-center opacity-60 text-sm border-t border-current/10">
+        <p>&copy; ${new Date().getFullYear()} ${escapeHtml(data.fullName)}.</p>
+    </footer>
+</body>
+</html>`;
+        }
+
+        function updatePreview() {
+            const data = getFormData();
+            const html = generateHTML(data);
+            const iframe = document.getElementById('previewFrame');
+            iframe.contentDocument.open();
+            iframe.contentDocument.write(html);
+            iframe.contentDocument.close();
+        }
+
+        function downloadWebsite() {
+            const data = getFormData();
+            const html = generateHTML(data);
+            const blob = new Blob([html], { type: 'text/html' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'index.html';
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+    </script>
+    <style>@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }</style>
+</body>
+</html>
