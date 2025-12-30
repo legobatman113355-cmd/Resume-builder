@@ -1,1 +1,6 @@
 .vercel
+
+# Local config for storing API keys (gitignored)
+config.local.js
+config.local.*.js
+.config.local.js

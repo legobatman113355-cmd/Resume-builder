@@ -20,4 +20,12 @@ License
 MIT
 
 Enjoy — open `index.html` to get started.
-# Resume-builder
+
+Local API key (safe local-only setup)
+ - Create a file named `config.local.js` next to `index.html` with:
+	 - `window.GEN_API_KEY = 'YOUR_API_KEY_HERE';`
+ - `config.local.js` is gitignored by default; do NOT commit it.
+ - The app will prefer a key typed in the settings UI, then `window.GEN_API_KEY`.
+
+Security note
+ - Embedding API keys into client-side code that is publicly hosted exposes them to others. For production, host a small server-side proxy that holds the key and forwards requests securely.
