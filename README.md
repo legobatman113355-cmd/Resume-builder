@@ -20,4 +20,3 @@ License
 MIT
 
 Enjoy — open `index.html` to get started.
-# Resume-builder
