@@ -2,5 +2,6 @@
 
 # Local config for storing API keys (gitignored)
 config.local.js
-config.local.*.js
 .config.local.js
+# Keep example file tracked
+# (do not add a pattern that matches config.local.example.js)
