@@ -267,8 +267,9 @@
 
         // --- Gemini API Logic ---
         async function callGemini(prompt) {
+            // Priority: user input in settings -> local config (config.local.js) -> built-in empty
             const userKey = document.getElementById('apiKey').value;
-            const apiKey = ""; 
+            const apiKey = window.GEN_API_KEY || ""; 
             const key = userKey || apiKey;
             if (!key) {
                 alert("Please enter a Gemini API Key in the settings to use AI features!");
